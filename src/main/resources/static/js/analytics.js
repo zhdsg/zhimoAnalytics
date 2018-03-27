@@ -1976,12 +1976,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 // Custom Dimensions (can be any scope)
                 customDimensions = {},
 
-                // Custom Variables names and values are each truncated before being sent in the request or recorded in the cookie
-                customVariableMaximumLength = 200,
-
-                // Ecommerce items
-                ecommerceItems = {},
-
                 // Browser features via client-side data collection
                 browserFeatures = {},
 
@@ -2885,7 +2879,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              * with the standard parameters (plugins, resolution, url, referrer, etc.).
              * Sends the pageview and browser settings with every request in case of race conditions.
              */
-            function getRequest(request, customData, pluginMethod, currentEcommerceOrderTs) {
+            function getRequest(request, customData, pluginMethod) {
                 var i,
                     now = new Date(),
                     nowTs = Math.round(now.getTime() / 1000),
@@ -2909,9 +2903,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 }
 
                 var cookieVisitorIdValues = getValuesFromVisitorIdCookie();
-                if (!isDefined(currentEcommerceOrderTs)) {
-                    currentEcommerceOrderTs = "";
-                }
 
                 // send charset if document charset is not utf-8. sometimes encoding
                 // of urls will be the same as this and not utf-8, which will cause problems
@@ -5328,24 +5319,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 trackCallback(function () {
                     logSiteSearch(keyword, category, resultsCount, customData);
                 });
-            };
-
-            /**
-             * Adds an item (product) that is in the current Cart or in the Ecommerce order.
-             * This function is called for every item (product) in the Cart or the Order.
-             * The only required parameter is sku.
-             * The items are deleted from this JavaScript object when the Ecommerce order is tracked via the method trackEcommerceOrder.
-             *
-             * @param string sku (required) Item's SKU Code. This is the unique identifier for the product.
-             * @param string name (optional) Item's name
-             * @param string name (optional) Item's category, or array of up to 5 categories
-             * @param float price (optional) Item's price. If not specified, will default to 0
-             * @param float quantity (optional) Item's quantity. If not specified, will default to 1
-             */
-            this.addEcommerceItem = function (sku, name, category, price, quantity) {
-                if (sku.length) {
-                    ecommerceItems[sku] = [ sku, name, category, price, quantity ];
-                }
             };
 
             /**
