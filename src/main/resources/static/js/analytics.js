@@ -1635,39 +1635,32 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             },
             buildInteractionRequestParams: function (interaction, name, piece, target)
             {
-                var params = '';
+                var params = {};
 
                 if (interaction) {
-                    params += 'c_i='+ encodeWrapper(interaction);
+                    params.c_i = encodeWrapper(interaction);
                 }
                 if (name) {
-                    if (params) {
-                        params += '&';
-                    }
-                    params += 'c_n='+ encodeWrapper(name);
+                    params.c_n = encodeWrapper(name);
                 }
                 if (piece) {
-                    if (params) {
-                        params += '&';
-                    }
-                    params += 'c_p='+ encodeWrapper(piece);
+                    params.c_p = encodeWrapper(piece);
                 }
                 if (target) {
-                    if (params) {
-                        params += '&';
-                    }
-                    params += 'c_t='+ encodeWrapper(target);
+                    params.c_t = encodeWrapper(target);
                 }
 
                 return params;
             },
             buildImpressionRequestParams: function (name, piece, target)
             {
-                var params = 'c_n=' + encodeWrapper(name) +
-                             '&c_p=' + encodeWrapper(piece);
+                var params = {
+                    c_n: encodeWrapper(name),
+                    c_p: encodeWrapper(piece)
+                };
 
                 if (target) {
-                    params += '&c_t=' + encodeWrapper(target);
+                    params.c_t = encodeWrapper(target);
                 }
 
                 return params;
@@ -1882,9 +1875,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 // API URL (only set if it differs from the Tracker URL)
                 configApiUrl = '',
 
-                // This string is appended to the Tracker URL Request (eg. to send data that is not handled by the existing setters/getters)
-                configAppendToTrackingUrl = '',
-
                 // Site ID
                 configTrackerSiteId = siteId || '',
 
@@ -1987,20 +1977,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
                 // Generation time set from the server
                 configPerformanceGenerationTime = 0,
-
-                // Whether Custom Variables scope "visit" should be stored in a cookie during the time of the visit
-                configStoreCustomVariablesInCookie = false,
-
-                // Custom Variables read from cookie, scope "visit"
-                customVariables = false,
-
-                configCustomRequestContentProcessing,
-
-                // Custom Variables, scope "page"
-                customVariablesPage = {},
-
-                // Custom Variables, scope "event"
-                customVariablesEvent = {},
 
                 // Custom Dimensions (can be any scope)
                 customDimensions = {},
@@ -2370,18 +2346,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                     };
 
                     xhr.setRequestHeader('Content-Type', configRequestContentType);
-
-                    // send application/json here
-                    var kvpairs = request.split('&');
-                    var payload = {};
-                    for (var ii = 0; ii < kvpairs.length; ++ii) {
-                        var kvpair = kvpairs[ii];
-                        var kvs = kvpair.split('=');
-                        if (kvs.length === 2) {
-                            payload[kvs[0]] = kvs[1];
-                        }
-                    }
-                    xhr.send(JSON.stringify(payload));
+                    xhr.send(JSON.stringify(request));
                 } catch (e) {
                     if (fallbackToGet) {
                         // fallback
@@ -2557,7 +2522,9 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 var bulk = '{"requests":["?' + requests.join('","?') + '"]}';
 
                 makeSureThereIsAGapAfterFirstTrackingRequestToPreventMultipleVisitorCreation(function () {
-                    sendXmlHttpRequest(bulk, null, false);
+                    for (var ii = 0; ii < requests.length; ++ii) {
+                        sendXmlHttpRequest(requests[ii], null, false);
+                    }
                     setExpireDateTime(delay);
                 });
             }
@@ -2594,33 +2561,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              */
             function updateDomainHash() {
                 domainHash = hash((configCookieDomain || domainAlias) + (configCookiePath || '/')).slice(0, 4); // 4 hexits = 16 bits
-            }
-
-            /*
-             * Inits the custom variables object
-             */
-            function getCustomVariablesFromCookie() {
-                var cookieName = getCookieName('cvar'),
-                    cookie = getCookie(cookieName);
-
-                if (cookie.length) {
-                    cookie = JSON.parse(cookie);
-
-                    if (isObject(cookie)) {
-                        return cookie;
-                    }
-                }
-
-                return {};
-            }
-
-            /*
-             * Lazy loads the custom variables from the cookie, only once during this page view
-             */
-            function loadCustomVariables() {
-                if (customVariables === false) {
-                    customVariables = getCustomVariablesFromCookie();
-                }
             }
 
             /*
@@ -2987,10 +2927,8 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                     referralUrlMaxLength = 1024,
                     currentReferrerHostName,
                     originalReferrerHostName,
-                    customVariablesCopy = customVariables,
                     cookieSessionName = getCookieName('ses'),
                     cookieReferrerName = getCookieName('ref'),
-                    cookieCustomVariablesName = getCookieName('cvar'),
                     cookieSessionValue = getCookie(cookieSessionName),
                     attributionCookie = loadReferrerAttributionCookie(),
                     currentUrl = configCustomUrl || locationHrefAlias;
@@ -3061,26 +2999,26 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 }
 
                 // build out the rest of the request
-                request += '&idsite=' + configTrackerSiteId +
-                '&rec=1' +
-                '&r=' + String(Math.random()).slice(2, 8) + // keep the string to a minimum
-                '&h=' + now.getHours() + '&m=' + now.getMinutes() + '&s=' + now.getSeconds() +
-                '&url=' + encodeWrapper(purify(currentUrl)) +
-                (configReferrerUrl.length ? '&urlref=' + encodeWrapper(purify(configReferrerUrl)) : '') +
-                ((configUserId && configUserId.length) ? '&uid=' + encodeWrapper(configUserId) : '') +
-                '&_id=' + cookieVisitorIdValues.uuid + '&_idts=' + cookieVisitorIdValues.createTs + '&_idvc=' + cookieVisitorIdValues.visitCount +
-                '&_idn=' + cookieVisitorIdValues.newVisitor + // currently unused
-                '&_refts=' + referralTs +
-                '&_viewts=' + cookieVisitorIdValues.lastVisitTs +
-                (String(cookieVisitorIdValues.lastEcommerceOrderTs).length ? '&_ects=' + cookieVisitorIdValues.lastEcommerceOrderTs : '') +
-                (String(referralUrl).length ? '&_ref=' + encodeWrapper(purify(referralUrl.slice(0, referralUrlMaxLength))) : '') +
-                (charSet ? '&cs=' + encodeWrapper(charSet) : '') +
-                '&send_image=0';
+                request.appId = configTrackerSiteId;
+                request.rec = 1;
+                request.r = String(Math.random()).slice(2, 8);
+                request.t = now.getTime();
+                request.url = encodeWrapper(purify(currentUrl));
+                if (configReferrerUrl.length) request.urlref = encodeWrapper(purify(configReferrerUrl));
+                if (configUserId && configUserId.length) request.uid = encodeWrapper(configUserId);
+                request._id = cookieVisitorIdValues.uuid;
+                request._idts = cookieVisitorIdValues.createTs;
+                request._idvc = cookieVisitorIdValues.visitCount;
+                request._idn = cookieVisitorIdValues.newVisitor;
+                request._refts = referralTs;
+                request._viewts = cookieVisitorIdValues.lastVisitTs;
+                if (String(referralUrl).length) request._ref = encodeWrapper(purify(referralUrl.slice(0, referralUrlMaxLength)));
+                if (charSet) request.cs = encodeWrapper(charSet);
 
                 // browser features
                 for (i in browserFeatures) {
                     if (Object.prototype.hasOwnProperty.call(browserFeatures, i)) {
-                        request += '&' + i + '=' + browserFeatures[i];
+                        request[i] = browserFeatures[i];
                     }
                 }
 
@@ -3091,7 +3029,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                             var index = i.replace('dimension', '');
                             customDimensionIdsAlreadyHandled.push(parseInt(index, 10));
                             customDimensionIdsAlreadyHandled.push(String(index));
-                            request += '&' + i + '=' + customData[i];
+                            request[i] = customData[i];
                             delete customData[i];
                         }
                     }
@@ -3107,80 +3045,36 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                     if (Object.prototype.hasOwnProperty.call(customDimensions, i)) {
                         var isNotSetYet = (-1 === indexOfArray(customDimensionIdsAlreadyHandled, i));
                         if (isNotSetYet) {
-                            request += '&dimension' + i + '=' + customDimensions[i];
+                            request['dimension' + i] = customDimensions[i];
                         }
                     }
                 }
 
                 // custom data
                 if (customData) {
-                    request += '&data=' + encodeWrapper(JSON.stringify(customData));
+                    request.data = encodeWrapper(JSON.stringify(customData));
                 } else if (configCustomData) {
-                    request += '&data=' + encodeWrapper(JSON.stringify(configCustomData));
-                }
-
-                // Custom Variables, scope "page"
-                function appendCustomVariablesToRequest(customVariables, parameterName) {
-                    var customVariablesStringified = JSON.stringify(customVariables);
-                    if (customVariablesStringified.length > 2) {
-                        return '&' + parameterName + '=' + encodeWrapper(customVariablesStringified);
-                    }
-                    return '';
-                }
-
-                var sortedCustomVarPage = sortObjectByKeys(customVariablesPage);
-                var sortedCustomVarEvent = sortObjectByKeys(customVariablesEvent);
-
-                request += appendCustomVariablesToRequest(sortedCustomVarPage, 'cvar');
-                request += appendCustomVariablesToRequest(sortedCustomVarEvent, 'e_cvar');
-
-                // Custom Variables, scope "visit"
-                if (customVariables) {
-                    request += appendCustomVariablesToRequest(customVariables, '_cvar');
-
-                    // Don't save deleted custom variables in the cookie
-                    for (i in customVariablesCopy) {
-                        if (Object.prototype.hasOwnProperty.call(customVariablesCopy, i)) {
-                            if (customVariables[i][0] === '' || customVariables[i][1] === '') {
-                                delete customVariables[i];
-                            }
-                        }
-                    }
-
-                    if (configStoreCustomVariablesInCookie) {
-                        setCookie(cookieCustomVariablesName, JSON.stringify(customVariables), configSessionCookieTimeout, configCookiePath, configCookieDomain);
-                    }
+                    request.data = encodeWrapper(JSON.stringify(configCustomData));
                 }
 
                 // performance tracking
                 if (configPerformanceTrackingEnabled) {
                     if (configPerformanceGenerationTime) {
-                        request += '&gt_ms=' + configPerformanceGenerationTime;
+                        request.gt_ms = configPerformanceGenerationTime;
                     } else if (performanceAlias && performanceAlias.timing
                         && performanceAlias.timing.requestStart && performanceAlias.timing.responseEnd) {
-                        request += '&gt_ms=' + (performanceAlias.timing.responseEnd - performanceAlias.timing.requestStart);
+                        request.gt_ms = performanceAlias.timing.responseEnd - performanceAlias.timing.requestStart;
                     }
                 }
 
-                if (configIdPageView) {
-                    request += '&pv_id=' + configIdPageView;
-                }
+                if (configIdPageView) request.pv_id = configIdPageView;
 
                 // update cookies
-                cookieVisitorIdValues.lastEcommerceOrderTs = isDefined(currentEcommerceOrderTs) && String(currentEcommerceOrderTs).length ? currentEcommerceOrderTs : cookieVisitorIdValues.lastEcommerceOrderTs;
                 setVisitorIdCookie(cookieVisitorIdValues);
                 setSessionCookie();
 
                 // tracker plugin hook
-                request += executePluginMethod(pluginMethod, {tracker: trackerInstance, request: request});
-
-                if (configAppendToTrackingUrl.length) {
-                    request += '&' + configAppendToTrackingUrl;
-                }
-
-                if (isFunction(configCustomRequestContentProcessing)) {
-                    request = configCustomRequestContentProcessing(request);
-                }
+                //request += executePluginMethod(pluginMethod, {tracker: trackerInstance, request: request});
 
                 return request;
             }
@@ -3192,7 +3086,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             heartBeatPingIfActivityAlias = function heartBeatPingIfActivity() {
                 var now = new Date();
                 if (lastTrackerRequestTime + configHeartBeatDelay <= now.getTime()) {
-                    var requestPing = getRequest('ping=1', null, 'ping');
+                    var requestPing = getRequest({ping: 1}, null, 'ping');
                     sendRequest(requestPing, configTrackerPause);
 
                     return true;
@@ -3201,96 +3095,13 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 return false;
             };
 
-            function logEcommerce(orderId, grandTotal, subTotal, tax, shipping, discount) {
-                var request = 'idgoal=0',
-                    lastEcommerceOrderTs,
-                    now = new Date(),
-                    items = [],
-                    sku,
-                    isEcommerceOrder = String(orderId).length;
-
-                if (isEcommerceOrder) {
-                    request += '&ec_id=' + encodeWrapper(orderId);
-                    // Record date of order in the visitor cookie
-                    lastEcommerceOrderTs = Math.round(now.getTime() / 1000);
-                }
-
-                request += '&revenue=' + grandTotal;
-
-                if (String(subTotal).length) {
-                    request += '&ec_st=' + subTotal;
-                }
-
-                if (String(tax).length) {
-                    request += '&ec_tx=' + tax;
-                }
-
-                if (String(shipping).length) {
-                    request += '&ec_sh=' + shipping;
-                }
-
-                if (String(discount).length) {
-                    request += '&ec_dt=' + discount;
-                }
-
-                if (ecommerceItems) {
-                    // Removing the SKU index in the array before JSON encoding
-                    for (sku in ecommerceItems) {
-                        if (Object.prototype.hasOwnProperty.call(ecommerceItems, sku)) {
-                            // Ensure name and category default to healthy value
-                            if (!isDefined(ecommerceItems[sku][1])) {
-                                ecommerceItems[sku][1] = "";
-                            }
-
-                            if (!isDefined(ecommerceItems[sku][2])) {
-                                ecommerceItems[sku][2] = "";
-                            }
-
-                            // Set price to zero
-                            if (!isDefined(ecommerceItems[sku][3])
-                                    || String(ecommerceItems[sku][3]).length === 0) {
-                                ecommerceItems[sku][3] = 0;
-                            }
-
-                            // Set quantity to 1
-                            if (!isDefined(ecommerceItems[sku][4])
-                                    || String(ecommerceItems[sku][4]).length === 0) {
-                                ecommerceItems[sku][4] = 1;
-                            }
-
-                            items.push(ecommerceItems[sku]);
-                        }
-                    }
-                    request += '&ec_items=' + encodeWrapper(JSON.stringify(items));
-                }
-                request = getRequest(request, configCustomData, 'ecommerce', lastEcommerceOrderTs);
-                sendRequest(request, configTrackerPause);
-
-                if (isEcommerceOrder) {
-                    ecommerceItems = {};
-                }
-            }
-
-            function logEcommerceOrder(orderId, grandTotal, subTotal, tax, shipping, discount) {
-                if (String(orderId).length
-                        && isDefined(grandTotal)) {
-                    logEcommerce(orderId, grandTotal, subTotal, tax, shipping, discount);
-                }
-            }
-
-            function logEcommerceCartUpdate(grandTotal) {
-                if (isDefined(grandTotal)) {
-                    logEcommerce("", grandTotal, "", "", "", "");
-                }
-            }
-
             /*
              * Log the page view / visit
              */
             function logPageView(customTitle, customData, callback) {
                 configIdPageView = generateUniqueId();
 
-                var request = getRequest('action_name=' + encodeWrapper(titleFixup(customTitle || configTitle)), customData, 'log');
+                var request = getRequest({action_name: encodeWrapper(titleFixup(customTitle || configTitle))}, customData, 'log');
 
                 sendRequest(request, configTrackerPause, callback);
             }
@@ -3430,7 +3241,13 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
                 var redirectUrl = content.toAbsoluteUrl(url);
                 var request  = 'redirecturl=' + encodeWrapper(redirectUrl) + '&';
-                request     += buildContentInteractionRequest(contentInteraction, contentName, contentPiece, (contentTarget || url));
+                // parse from json to params
+                var params = buildContentInteractionRequest(contentInteraction, contentName, contentPiece, (contentTarget || url));
+                for (var key in params) {
+                    if (Object.prototype.hasOwnProperty.call(params, ii)) {
+                        request += '&' + key + '=' + params[key];
+                    }
+                }
 
                 var separator = '&';
                 if (configTrackerUrl.indexOf('?') < 0) {
@@ -3786,10 +3603,12 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
             function buildEventRequest(category, action, name, value)
             {
-                return 'e_c=' + encodeWrapper(category)
-                     + '&e_a=' + encodeWrapper(action)
-                     + (isDefined(name) ? '&e_n=' + encodeWrapper(name) : '')
-                     + (isDefined(value) ? '&e_v=' + encodeWrapper(value) : '');
+                var result = {};
+                result.e_c = encodeWrapper(category);
+                result.e_a = encodeWrapper(action);
+                if (isDefined(name)) result.e_n = encodeWrapper(name);
+                if (isDefined(value)) result.e_v = encodeWrapper(value);
+                return result;
             }
 
             /*
@@ -3815,9 +3634,10 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              * Log the site search request
              */
             function logSiteSearch(keyword, category, resultsCount, customData) {
-                var request = getRequest('search=' + encodeWrapper(keyword)
-                                + (category ? '&search_cat=' + encodeWrapper(category) : '')
-                                + (isDefined(resultsCount) ? '&search_count=' + resultsCount : ''), customData, 'sitesearch');
+                var params = {search: encodeWrapper(keyword)};
+                if (category) params.search_cat = encodeWrapper(category);
+                if (isDefined(resultsCount)) params.search_count = resultsCount;
+                var request = getRequest(params, customData, 'sitesearch');
 
                 sendRequest(request, configTrackerPause);
             }
@@ -3826,7 +3646,9 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              * Log the goal with the server
              */
             function logGoal(idGoal, customRevenue, customData) {
-                var request = getRequest('idgoal=' + idGoal + (customRevenue ? '&revenue=' + customRevenue : ''), customData, 'goal');
+                var params = {idgoal: idGoal};
+                if (customRevenue) params.revenue = customRevenue;
+                var request = getRequest(params, customData, 'goal');
 
                 sendRequest(request, configTrackerPause);
             }
@@ -3836,13 +3658,8 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              */
             function logLink(url, linkType, customData, callback, sourceElement) {
 
-                var linkParams = linkType + '=' + encodeWrapper(purify(url));
-
-                var interaction = getContentInteractionToRequestIfPossible(sourceElement, 'click', url);
-
-                if (interaction) {
-                    linkParams += '&' + interaction;
-                }
+                var linkParams = getContentInteractionToRequestIfPossible(sourceElement, 'click', url);
+                linkParams[linkType] = encodeWrapper(purify(url));
 
                 var request = getRequest(linkParams, customData, 'link');
 
@@ -4589,36 +4406,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             };
 
             /**
-             * Configure function with custom request content processing logic.
-             * It gets called after request content in form of query parameters string has been prepared and before request content gets sent.
-             *
-             * Examples:
-             *   tracker.setCustomRequestProcessing(function(request){
-             *     var pairs = request.split('&');
-             *     var result = {};
-             *     pairs.forEach(function(pair) {
-             *       pair = pair.split('=');
-             *       result[pair[0]] = decodeURIComponent(pair[1] || '');
-             *     });
-             *     return JSON.stringify(result);
-             *   });
-             *
-             * @param function customRequestContentProcessingLogic
-             */
-            this.setCustomRequestProcessing = function (customRequestContentProcessingLogic) {
-                configCustomRequestContentProcessing = customRequestContentProcessingLogic;
-            };
-
-            /**
-             * Appends the specified query string to the events/send?... Tracking API URL
-             *
-             * @param string queryString eg. 'lat=140&long=100'
-             */
-            this.appendToTrackingUrl = function (queryString) {
-                configAppendToTrackingUrl = queryString;
-            };
-
-            /**
              * Returns the query string for the current HTTP Tracking API request.
              * prior to sending the request.
              *
@@ -4682,113 +4469,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 if (customDimensionId > 0) {
                     delete customDimensions[customDimensionId];
                 }
-            };
-
-            /**
-             * Set custom variable within this visit
-             *
-             * @param int index Custom variable slot ID from 1-5
-             * @param string name
-             * @param string value
-             * @param string scope Scope of Custom Variable:
-             *                     - "visit" will store the name/value in the visit and will persist it in the cookie for the duration of the visit,
-             *                     - "page" will store the name/value in the next page view tracked.
-             *                     - "event" will store the name/value in the next event tracked.
-             */
-            this.setCustomVariable = function (index, name, value, scope) {
-                var toRecord;
-
-                if (!isDefined(scope)) {
-                    scope = 'visit';
-                }
-                if (!isDefined(name)) {
-                    return;
-                }
-                if (!isDefined(value)) {
-                    value = "";
-                }
-                if (index > 0) {
-                    name = !isString(name) ? String(name) : name;
-                    value = !isString(value) ? String(value) : value;
-                    toRecord = [name.slice(0, customVariableMaximumLength), value.slice(0, customVariableMaximumLength)];
-                    // numeric scope is there for GA compatibility
-                    if (scope === 'visit' || scope === 2) {
-                        loadCustomVariables();
-                        customVariables[index] = toRecord;
-                    } else if (scope === 'page' || scope === 3) {
-                        customVariablesPage[index] = toRecord;
-                    } else if (scope === 'event') { /* GA does not have 'event' scope but we do */
-                        customVariablesEvent[index] = toRecord;
-                    }
-                }
-            };
-
-            /**
-             * Get custom variable
-             *
-             * @param int index Custom variable slot ID from 1-5
-             * @param string scope Scope of Custom Variable: "visit" or "page" or "event"
-             */
-            this.getCustomVariable = function (index, scope) {
-                var cvar;
-
-                if (!isDefined(scope)) {
-                    scope = "visit";
-                }
-
-                if (scope === "page" || scope === 3) {
-                    cvar = customVariablesPage[index];
-                } else if (scope === "event") {
-                    cvar = customVariablesEvent[index];
-                } else if (scope === "visit" || scope === 2) {
-                    loadCustomVariables();
-                    cvar = customVariables[index];
-                }
-
-                if (!isDefined(cvar)
-                        || (cvar && cvar[0] === '')) {
-                    return false;
-                }
-
-                return cvar;
-            };
-
-            /**
-             * Delete custom variable
-             *
-             * @param int index Custom variable slot ID from 1-5
-             * @param string scope
-             */
-            this.deleteCustomVariable = function (index, scope) {
-                // Only delete if it was there already
-                if (this.getCustomVariable(index, scope)) {
-                    this.setCustomVariable(index, '', '', scope);
-                }
-            };
-
-            /**
-             * Deletes all custom variables for a certain scope.
-             *
-             * @param string scope
-             */
-            this.deleteCustomVariables = function (scope) {
-                if (scope === "page" || scope === 3) {
-                    customVariablesPage = {};
-                } else if (scope === "event") {
-                    customVariablesEvent = {};
-                } else if (scope === "visit" || scope === 2) {
-                    customVariables = {};
-                }
-            };
-
-            /**
-             * When called then the Custom Variables of scope "visit" will be stored (persisted) in a first party cookie
-             * for the duration of the visit. This is useful if you want to call getCustomVariable later in the visit.
-             *
-             * By default, Custom Variables of scope "visit" are not stored on the visitor's computer.
-             */
-            this.storeCustomVariablesInCookie = function () {
-                configStoreCustomVariablesInCookie = true;
             };
 
             /**
@@ -5051,8 +4731,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              */
             this.setCookieNamePrefix = function (cookieNamePrefix) {
                 configCookieNamePrefix = cookieNamePrefix;
-                // Re-init the Custom Variables cookie
-                customVariables = getCustomVariablesFromCookie();
             };
 
             /**
@@ -5695,52 +5373,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             };
 
             /**
-             * Used to record that the current page view is an item (product) page view, or a Ecommerce Category page view.
-             * This must be called before trackPageView() on the product/category page.
-             * It will set 3 custom variables of scope "page" with the SKU, Name and Category for this page view.
-             * Note: Custom Variables of scope "page" slots 3, 4 and 5 will be used.
-             *
-             * On a category page, you can set the parameter category, and set the other parameters to empty string or false
-             *
-             * Tracking Product/Category page views will allow ZhimoAnalytics to report on Product & Categories
-             * conversion rates (Conversion rate = Ecommerce orders containing this product or category / Visits to the product or category)
-             *
-             * @param string sku Item's SKU code being viewed
-             * @param string name Item's Name being viewed
-             * @param string category Category page being viewed. On an Item's page, this is the item's category
-             * @param float price Item's display price, not use in standard ZhimoAnalytics reports, but output in API product reports.
-             */
-            this.setEcommerceView = function (sku, name, category, price) {
-                if (!isDefined(category) || !category.length) {
-                    category = "";
-                } else if (category instanceof Array) {
-                    category = JSON.stringify(category);
-                }
-
-                customVariablesPage[5] = ['_pkc', category];
-
-                if (isDefined(price) && String(price).length) {
-                    customVariablesPage[2] = ['_pkp', price];
-                }
-
-                // On a category page, do not track Product name not defined
-                if ((!isDefined(sku) || !sku.length)
-                        && (!isDefined(name) || !name.length)) {
-                    return;
-                }
-
-                if (isDefined(sku) && sku.length) {
-                    customVariablesPage[3] = ['_pks', sku];
-                }
-
-                if (!isDefined(name) || !name.length) {
-                    name = "";
-                }
-
-                customVariablesPage[4] = ['_pkn', name];
-            };
-
-            /**
              * Adds an item (product) that is in the current Cart or in the Ecommerce order.
              * This function is called for every item (product) in the Cart or the Order.
              * The only required parameter is sku.
@@ -5756,38 +5388,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                 if (sku.length) {
                     ecommerceItems[sku] = [ sku, name, category, price, quantity ];
                 }
-            };
-
-            /**
-             * Tracks an Ecommerce order.
-             * If the Ecommerce order contains items (products), you must call first the addEcommerceItem() for each item in the order.
-             * All revenues (grandTotal, subTotal, tax, shipping, discount) will be individually summed and reported in ZhimoAnalytics reports.
-             * Parameters orderId and grandTotal are required. For others, you can set to false if you don't need to specify them.
-             * After calling this method, items added to the cart will be removed from this JavaScript object.
-             *
-             * @param string|int orderId (required) Unique Order ID.
-             *                   This will be used to count this order only once in the event the order page is reloaded several times.
-             *                   orderId must be unique for each transaction, even on different days, or the transaction will not be recorded by ZhimoAnalytics.
-             * @param float grandTotal (required) Grand Total revenue of the transaction (including tax, shipping, etc.)
-             * @param float subTotal (optional) Sub total amount, typically the sum of items prices for all items in this order (before Tax and Shipping costs are applied)
-             * @param float tax (optional) Tax amount for this order
-             * @param float shipping (optional) Shipping amount for this order
-             * @param float discount (optional) Discounted amount in this order
-             */
-            this.trackEcommerceOrder = function (orderId, grandTotal, subTotal, tax, shipping, discount) {
-                logEcommerceOrder(orderId, grandTotal, subTotal, tax, shipping, discount);
-            };
-
-            /**
-             * Tracks a Cart Update (add item, remove item, update item).
-             * On every Cart update, you must call addEcommerceItem() for each item (product) in the cart, including the items that haven't been updated since the last cart update.
-             * Then you can call this function with the Cart grandTotal (typically the sum of all items' prices)
-             * Calling this method does not remove from this JavaScript object the items that were added to the cart via addEcommerceItem
-             *
-             * @param float grandTotal (required) Items (products) amount in the Cart
-             */
-            this.trackEcommerceCartUpdate = function (grandTotal) {
-                logEcommerceCartUpdate(grandTotal);
             };
 
             /**
@@ -6180,7 +5780,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
         }
     }
 
-    window.ZhimoAnalytics.trigger('PiwikInitialized', []);
+    window.ZhimoAnalytics.trigger('ZhimoAnalyticsInitialized', []);
     window.ZhimoAnalytics.initialized = true;
 }());
 
