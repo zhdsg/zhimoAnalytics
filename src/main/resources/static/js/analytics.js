@@ -1859,11 +1859,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
                 enableJSErrorTracking = false,
 
-                defaultRequestMethod = 'POST',
-
-                // Request method (GET or POST)
-                configRequestMethod = defaultRequestMethod,
-
                 defaultRequestContentType = 'application/json; charset=UTF-8',
 
                 // Request Content-Type header value; applicable when POST request method is used for submitting tracking events
@@ -2301,29 +2296,9 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             }
 
             /*
-             * Send image request to ZhimoAnalytics server using GET.
-             * The infamous web bug (or beacon) is a transparent, single pixel (1x1) image
-             */
-            function getImage(request, callback) {
-                var image = new Image(1, 1);
-
-                image.onload = function () {
-                    iterator = 0; // To avoid JSLint warning of empty block
-                    if (typeof callback === 'function') { callback(); }
-                };
-                // make sure to actually load an image so callback gets invoked
-                request = request.replace("send_image=0","send_image=1");
-                image.src = configTrackerUrl + (configTrackerUrl.indexOf('?') < 0 ? '?' : '&') + request;
-            }
-
-            /*
              * POST request to ZhimoAnalytics server using XMLHttpRequest.
              */
-            function sendXmlHttpRequest(request, callback, fallbackToGet) {
-                if (!isDefined(fallbackToGet) || null === fallbackToGet) {
-                    fallbackToGet = true;
-                }
-
+            function sendXmlHttpRequest(request, callback) {
                 try {
                     // we use the progid Microsoft.XMLHTTP because
                     // IE5.5 included MSXML 2.5; the progid MSXML2.XMLHTTP
@@ -2338,8 +2313,8 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
                     // fallback on error
                     xhr.onreadystatechange = function () {
-                        if (this.readyState === 4 && !(this.status >= 200 && this.status < 300) && fallbackToGet) {
-                            getImage(request, callback);
+                        if (this.readyState === 4 && !(this.status >= 200 && this.status < 300)) {
+                            console.log('sendXmlHttpRequest error, status: ' + this.status);
                         } else {
                             if (this.readyState === 4 && (typeof callback === 'function')) { callback(); }
                         }
@@ -2348,10 +2323,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
                     xhr.setRequestHeader('Content-Type', configRequestContentType);
                     xhr.send(JSON.stringify(request));
                 } catch (e) {
-                    if (fallbackToGet) {
-                        // fallback
-                        getImage(request, callback);
-                    }
+                    console.log(JSON.stringify(e));
                 }
             }
 
@@ -2484,12 +2456,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
             function sendRequest(request, delay, callback) {
                 if (!configDoNotTrack && request) {
                     makeSureThereIsAGapAfterFirstTrackingRequestToPreventMultipleVisitorCreation(function () {
-                        if (configRequestMethod === 'POST' || String(request).length > 2000) {
-                            sendXmlHttpRequest(request, callback);
-                        } else {
-                            getImage(request, callback);
-                        }
-
+                        sendXmlHttpRequest(request, callback);
                         setExpireDateTime(delay);
                     });
                 }
@@ -2523,7 +2490,7 @@ if (typeof window.ZhimoAnalytics !== 'object') {
 
                 makeSureThereIsAGapAfterFirstTrackingRequestToPreventMultipleVisitorCreation(function () {
                     for (var ii = 0; ii < requests.length; ++ii) {
-                        sendXmlHttpRequest(requests[ii], null, false);
+                        sendXmlHttpRequest(requests[ii], null);
                     }
                     setExpireDateTime(delay);
                 });
@@ -4639,15 +4606,6 @@ if (typeof window.ZhimoAnalytics !== 'object') {
              */
             this.setIgnoreClasses = function (ignoreClasses) {
                 configIgnoreClasses = isString(ignoreClasses) ? [ignoreClasses] : ignoreClasses;
-            };
-
-            /**
-             * Set request method
-             *
-             * @param string method GET or POST; default is GET
-             */
-            this.setRequestMethod = function (method) {
-                configRequestMethod = method || defaultRequestMethod;
             };
 
             /**
