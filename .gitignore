@@ -27,3 +27,6 @@ nbdist/
 
 ### mac system ###
 .DS_Store
+
+application.properties
+
