@@ -21,6 +21,9 @@ public class SenderConfig {
     @Value("${kafka.bootstrap-servers}")
     private String bootstrapServers;
 
+    @Value("${kafka.topic}")
+    private String topic;
+
     @Bean
     public Map<String, Object> producerConfigs() {
         Map<String, Object> props = new HashMap<String, Object>();
@@ -49,4 +52,7 @@ public class SenderConfig {
     public Sender sender() {
         return new Sender();
     }
+
+    @Bean
+    public String topic() { return topic; }
 }

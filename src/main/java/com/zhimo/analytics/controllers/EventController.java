@@ -23,12 +23,15 @@ public class EventController {
     @Autowired
     private Sender sender;
 
+    @Autowired
+    private String topic;
+
     @POST
     @Path("/send")
     @Produces("application/json")
     public Response sendEvent(@RequestBody String payload) throws URISyntaxException {
 //    public Response sendEvent(@RequestParam Map<String, Object> payload) throws URISyntaxException {
-        sender.send("useraction", payload);
+        sender.send(topic, payload);
         return Response
                 .status(200)
                 .entity(payload)
