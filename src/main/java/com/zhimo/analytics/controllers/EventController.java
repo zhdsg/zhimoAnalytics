@@ -52,7 +52,7 @@ public class EventController {
         sender.send(topic, jsonPayload.toString());
         return Response
                 .status(200)
-                .entity(payload)
+                .entity("SUCCESS")
                 .build();
     }
 }
