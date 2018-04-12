@@ -7,14 +7,14 @@ import com.zhimo.analytics.kafka.Sender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.*;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.Response;
 import java.net.URISyntaxException;
-import java.util.Map;
+import org.json.JSONObject;
 
 @Path("/events")
 public class EventController {
@@ -29,9 +29,27 @@ public class EventController {
     @POST
     @Path("/send")
     @Produces("application/json")
-    public Response sendEvent(@RequestBody String payload) throws URISyntaxException {
-//    public Response sendEvent(@RequestParam Map<String, Object> payload) throws URISyntaxException {
-        sender.send(topic, payload);
+    public Response sendEvent(@RequestBody String payload, @Context HttpServletRequest request) throws URISyntaxException {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("Proxy-Client-IP");
+        }
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_CLIENT_IP");
+        }
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("HTTP_X_FORWARDED_FOR");
+        }
+        if (ip == null || ip.length() == 0 || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        JSONObject jsonPayload = new JSONObject(payload);
+        jsonPayload.put("ip", ip);
+        jsonPayload.put("u_a", request.getHeader("User-Agent"));
+        sender.send(topic, jsonPayload.toString());
         return Response
                 .status(200)
                 .entity(payload)

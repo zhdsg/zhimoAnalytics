@@ -31,5 +31,6 @@ dependencies {
 	compile('org.springframework.kafka:spring-kafka')
 	compile('org.springframework.session:spring-session-core')
 	compileOnly('org.projectlombok:lombok')
+    compile group: 'org.json', name: 'json', version: '20180130'
 	testCompile('org.springframework.boot:spring-boot-starter-test')
 }
