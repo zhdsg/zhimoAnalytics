@@ -47,9 +47,14 @@ public class EventController {
             ip = request.getRemoteAddr();
         }
         JSONObject jsonPayload = new JSONObject(payload);
-        jsonPayload.put("ip", ip);
-        jsonPayload.put("u_a", request.getHeader("User-Agent"));
-        sender.send(topic, jsonPayload.toString());
+        JSONObject jsonObject = new JSONObject("{}");
+        //统一格式类型
+        for(String key : jsonPayload.keySet()){
+            jsonObject.put(key,jsonPayload.get(key).toString());
+        }
+        jsonObject.put("ip", ip);
+        jsonObject.put("u_a", request.getHeader("User-Agent"));
+        sender.send(topic, jsonObject.toString());
         return Response
                 .status(200)
                 .entity("SUCCESS")
